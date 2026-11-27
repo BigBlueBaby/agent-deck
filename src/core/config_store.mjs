@@ -27,6 +27,7 @@ export function buildDefaultConfig() {
       locale: "zh-CN", // "zh-CN" | "en"
       sidebarWidth: 268,
       sidebarCollapsed: false,
+      quotaDisplayMode: "remaining", // "remaining" | "used"
       pollRunningMs: 3000,
       pollIdleMs: 15000,
     },
@@ -170,6 +171,7 @@ export function saveConfig(dataDir, patch = {}) {
   // 边界收敛：侧栏宽度限制在 200~420px，配额模式收敛到枚举值
   next.ui.sidebarWidth = Math.max(200, Math.min(420, Number(next.ui.sidebarWidth || 268)));
   next.ui.locale = next.ui.locale === "en" ? "en" : "zh-CN";
+  next.ui.quotaDisplayMode = next.ui.quotaDisplayMode === "used" ? "used" : "remaining";
   if (!["burst", "balanced", "free_only"].includes(next.routing.quotaMode)) {
     next.routing.quotaMode = "balanced";
   }

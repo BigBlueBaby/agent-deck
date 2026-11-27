@@ -42,8 +42,8 @@ const runtimePatch = z.object({
 const configPatch = z.object({
   ui: z.object({
     locale: z.enum(["zh-CN", "en"]).optional(), sidebarWidth: z.number().finite().optional(),
-    sidebarCollapsed: z.boolean().optional(), pollRunningMs: z.number().int().positive().optional(),
-    pollIdleMs: z.number().int().positive().optional(),
+    sidebarCollapsed: z.boolean().optional(), quotaDisplayMode: z.enum(["remaining", "used"]).optional(),
+    pollRunningMs: z.number().int().positive().optional(), pollIdleMs: z.number().int().positive().optional(),
   }).strict().optional(),
   routing: z.object({
     quotaMode: mode.optional(), parallaxUrl: z.string().url().max(2048).optional(),

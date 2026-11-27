@@ -14,7 +14,7 @@ const tabs = new Set(["activity", "changes", "conversation"]);
 const modes = new Set(["burst", "balanced", "free_only"]);
 const widthLimit = (width) => Math.max(200, Math.min(420, Math.round(Number(width) || 268)));
 const ui = {
-  view: "tasks", tab: "activity", width: 268, collapsed: false, reasoning: false,
+  view: "tasks", tab: "activity", width: 268, collapsed: false, reasoning: false, quotaDisplay: "remaining",
   search: { tasks: "", files: "", models: "" }, taskFilter: "all", fileFilter: "all",
   requestedTask: undefined, notes: new Map(), diffs: new Map(), cancelling: new Set(),
   forms: new Map(), models: null, provider: null, probes: new Map(), environment: null,
@@ -205,6 +205,7 @@ function acceptSnapshot(value) {
   snapshot = incoming;
   ui.width = widthLimit(incoming.config.ui?.sidebarWidth);
   ui.collapsed = incoming.config.ui?.sidebarCollapsed === true;
+  ui.quotaDisplay = incoming.config.ui?.quotaDisplayMode === "used" ? "used" : "remaining";
   if (previousId && previousId !== incoming.selectedTaskId) {
     ui.search.files = "";
     ui.fileFilter = "all";
@@ -555,8 +556,14 @@ const actions = {
     if (Object.hasOwn(views, id) && id !== ui.view) {
       ui.view = id;
       render();
-      void foreground();
+      void foreground({ refreshQuota: id === "routing" });
     }
+  },
+  "quota-display": () => {
+    const next = ui.quotaDisplay === "used" ? "remaining" : "used";
+    ui.quotaDisplay = next;
+    render();
+    return perform("quota-display", () => saveConfig({ ui: { quotaDisplayMode: next } }), { redraw: false });
   },
   tab: (id) => {
     if (tabs.has(id) && id !== ui.tab) {

@@ -463,16 +463,25 @@ async function main() {
     const hasNoteForm = await evalFrame(`return Boolean(doc.querySelector('form[data-form="note"]'));`);
     assert.ok(hasNoteForm, "对话页应显示人工批注表单");
 
-    // 4. 切到「策略与用量」全局页：强制断言绝不渲染左侧工单栏，且能切换配额模式！
+    // 4. 切到「策略与用量」全局页：强制断言绝不渲染左侧工单栏、触发实时刷新、默认展示剩余额度且可切换已用！
     await evalFrame(`doc.querySelector('[data-action="view"][data-id="routing"]').click();`);
     await sleep(300);
     const routingCheck = await evalFrame(`
       const aside = doc.querySelector("aside.task-sidebar");
       const visible = aside && getComputedStyle(aside).display !== "none" && aside.getBoundingClientRect().width > 0;
-      return { sidebarVisible: Boolean(visible), text: doc.body.innerText };
+      const calls = window.parent.__HOST__.calls.filter(c => c.name === "ui_get_snapshot" && c.args?.refreshQuota === true);
+      return { sidebarVisible: Boolean(visible), text: doc.body.innerText, forcedQuotaCalls: calls.length };
     `);
     assert.equal(routingCheck.sidebarVisible, false, "「策略与用量」全局页绝不应显示无关的左侧工单栏！");
+    assert.ok(routingCheck.forcedQuotaCalls >= 1, "切换到策略与用量页签应自动触发 refreshQuota=true 实时刷新");
+    assert.ok(routingCheck.text.includes("剩余 68%"), "默认应展示剩余额度（剩余 68%）");
     assert.ok(routingCheck.text.includes("54.9") && routingCheck.text.includes("$0.56"), "Parallax 矩阵应展示真实能力分与成本");
+    await evalFrame(`doc.querySelector('[data-action="quota-display"]').click();`);
+    await sleep(250);
+    const usedText = await evalFrame(`return doc.body.innerText;`);
+    assert.ok(usedText.includes("已用 32%"), "点击切换后应展示已用额度（已用 32%）");
+    await evalFrame(`doc.querySelector('[data-action="quota-display"]').click();`);
+    await sleep(250);
     await evalFrame(`doc.querySelector('[data-action="quota-mode"][data-id="balanced"]').click();`);
     await sleep(300);
     const modePressed = await evalFrame(`return doc.querySelector('[data-action="quota-mode"][data-id="balanced"]')?.getAttribute("aria-pressed");`);

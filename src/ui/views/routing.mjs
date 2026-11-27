@@ -32,8 +32,8 @@ function isWindowExpired(win) {
   return Number.isFinite(date) && Date.now() >= date;
 }
 
-/** Codex 提供配额窗口（自动读取账号套餐类型，过期窗口自动归零提示），Antigravity 提供本地转录用量窗口。 */
-function quotaCard({ t, snapshot, fmt, locale }) {
+/** Codex 提供配额窗口（默认展示剩余额度，支持一键切换剩余/已用），Antigravity 提供本地转录用量窗口。 */
+function quotaCard({ t, snapshot, ui, fmt, locale }) {
   const codex = snapshot.quotaOverview?.codex;
   const antigravity = snapshot.quotaOverview?.antigravity;
   const windows = [["quota5", "primary"], ["quota7", "secondary"]];
@@ -41,17 +41,23 @@ function quotaCard({ t, snapshot, fmt, locale }) {
   const codexHeading = rawPlan ? `Codex · ${rawPlan[0].toUpperCase()}${rawPlan.slice(1)}` : "Codex";
   const sampledKey = codex?.source === "live" ? "liveSampledAt" : "sampledAt";
   const sampledNote = codex?.capturedAt ? `<small class="muted">${esc(t(sampledKey, fmt.date(codex.capturedAt)))}</small>` : "";
+  const showUsed = ui.quotaDisplay === "used";
+  const modeToggle = `<button type="button" class="button pill quota-toggle" data-action="quota-display" title="${esc(t("switchQuotaDisplay"))}" aria-label="${esc(t("switchQuotaDisplay"))}">${esc(t(showUsed ? "usedShort" : "remainingShort"))}</button>`;
   return `<section class="card panel quota-card" data-scroll-anchor="quota">
     <h2>${icon("routing", 17)}${esc(t("quotaMonitor"))}</h2>
-    <div class="quota-section"><div class="quota-caption"><h3>${esc(codexHeading)}</h3>${sampledNote}</div>
+    <div class="quota-section"><div class="quota-head"><div><h3>${esc(codexHeading)}</h3>${sampledNote}</div>${modeToggle}</div>
       ${windows.map(([label, key]) => {
         const window = [codex?.primary, codex?.secondary].find((row) => row?.windowMinutes === (key === "primary" ? 300 : 10080))
           ?? (codex?.[key] && !codex[key].windowMinutes ? codex[key] : null);
         if (!window) return `<div class="quota-caption"><span>${esc(t(label))}</span><span>${esc(t("quotaUnavailable"))}</span></div>`;
         const expired = isWindowExpired(window);
-        const value = expired ? 0 : Math.min(100, Math.max(0, Number(window.usedPercent) || 0));
-        return `<div class="quota-meter"><div class="quota-caption"><span>${esc(t(label))}</span><strong>${fmt.percent(value)}</strong></div>
-          <progress value="${value}" max="100" aria-label="${esc(codexHeading)} · ${esc(t(label))}"></progress>
+        const usedVal = expired ? 0 : Math.min(100, Math.max(0, Number(window.usedPercent) || 0));
+        const remVal = Math.max(0, 100 - usedVal);
+        const displayVal = showUsed ? usedVal : remVal;
+        const valueLabel = showUsed ? t("quotaUsed", fmt.percent(usedVal)) : t("quotaRemaining", fmt.percent(remVal));
+        const warn = !expired && remVal <= 15;
+        return `<div class="quota-meter"><div class="quota-caption"><span>${esc(t(label))}</span><strong class="${warn ? "negative" : ""}">${esc(valueLabel)}</strong></div>
+          <progress class="${warn ? "is-low" : ""}" value="${displayVal}" max="100" aria-label="${esc(codexHeading)} · ${esc(t(label))}"></progress>
           <small data-reset-at="${esc(window.resetsAt)}">${esc(expired ? t("awaitingReset") : countdown(window.resetsAt, t, locale))}</small></div>`;
       }).join("")}
     </div>
@@ -65,7 +71,7 @@ function quotaCard({ t, snapshot, fmt, locale }) {
     </div></section>`;
 }
 
-/** 倒计时兼容历史 Unix 秒、毫秒和 ISO 值，由主入口单独更新文本。 */
+/** 倒计时兼容历史 Unix 秒、毫秒和 ISO 值，同时附带精确重置时刻，由主入口单独更新文本。 */
 export function countdown(resetsAt, t, locale) {
   if (resetsAt == null || resetsAt === "") return "—";
   const numeric = Number(resetsAt);
@@ -74,8 +80,18 @@ export function countdown(resetsAt, t, locale) {
   if (!Number.isFinite(mins)) return "—";
   if (mins <= 0) return t("awaitingReset");
   const format = (value, unit) => new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" }).format(value);
-  const hours = Math.floor(mins / 60);
-  return t("resetsIn", [hours ? format(hours, "hour") : "", mins % 60 ? format(mins % 60, "minute") : ""].filter(Boolean).join(" "));
+  const days = Math.floor(mins / 1440);
+  const hours = Math.floor((mins % 1440) / 60);
+  const remMins = mins % 60;
+  const span = days > 0
+    ? [format(days, "day"), hours ? format(hours, "hour") : ""].filter(Boolean).join(" ")
+    : [hours ? format(hours, "hour") : "", remMins ? format(remMins, "minute") : ""].filter(Boolean).join(" ");
+  const target = new Date(date);
+  const sameDay = target.toDateString() === new Date().toDateString();
+  const clock = new Intl.DateTimeFormat(locale, sameDay
+    ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+    : { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(target);
+  return `${t("resetsIn", span)} · ${t("resetsAtClock", clock)}`;
 }
 
 /** 三档模式使用持久配置中的当前值，写入时防重复提交。 */
