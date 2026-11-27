@@ -15,6 +15,7 @@
   <a href="https://github.com/BigBlueBaby/agent-deck/stargazers"><img src="https://img.shields.io/github/stars/BigBlueBaby/agent-deck?style=flat&color=eab308" alt="GitHub Stars" /></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-3b82f6" alt="支持平台" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D22.5.0-22c55e" alt="Node >= 22.5.0" />
+  <a href="https://linux.do"><img src="https://img.shields.io/badge/LINUX%20DO-社区开源-f59e0b?style=flat&logo=linux&logoColor=white" alt="LINUX DO 社区" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-64748b" alt="MIT 开源协议" /></a>
 </p>
 
