@@ -191,7 +191,41 @@ async function main() {
     assert.ok(!modeRes.isError);
     assert.equal(modeRes.structuredContent.config.routing.quotaMode, "free_only");
 
-    console.log("[PASS 5/5] MCP Stdio 握手、17 个工具、脱敏隔离与 2 MiB UI 资源 / 200 KB 工具帧验收通过");
+    // 5b. 验证 Magpie 代理转发的 Codex 配额采集与过期窗口自动识别
+    const fakeCodexHome = path.join(tmpBase, "codex-home");
+    const fakeRolloutDir = path.join(fakeCodexHome, "sessions", "2026", "11", "27");
+    fs.mkdirSync(fakeRolloutDir, { recursive: true });
+    const pastSec = Math.floor((Date.now() - 600_000) / 1000);
+    const futureSec = Math.floor((Date.now() + 86_400_000) / 1000);
+    fs.writeFileSync(
+      path.join(fakeRolloutDir, "rollout-2026-11-27T11-00-00-01a21b16-eae1-7811-ba70-d0c29bec038a.jsonl"),
+      [
+        JSON.stringify({ type: "session_meta", payload: { model_provider: "magpie" } }),
+        JSON.stringify({
+          timestamp: new Date().toISOString(),
+          type: "event_msg",
+          payload: {
+            type: "token_count",
+            rate_limits: {
+              limit_id: "codex",
+              plan_type: "plus",
+              primary: { used_percent: 90, window_minutes: 300, resets_at: pastSec },
+              secondary: { used_percent: 14, window_minutes: 10080, resets_at: futureSec },
+            },
+          },
+        }),
+      ].join("\n"),
+      "utf8",
+    );
+    const { readLatestCodexQuota } = await import("../src/core/telemetry.mjs");
+    const qSample = readLatestCodexQuota({ runtimes: { codex: { codexHome: fakeCodexHome } } }, { force: true });
+    assert.ok(qSample, "应识别 Magpie 透传的 Codex 官方配额");
+    assert.equal(qSample.primary.usedPercent, 90);
+    assert.equal(qSample.primary.expired, true, "超过 resets_at 的 5h 窗口应标记 expired=true");
+    assert.equal(qSample.secondary.usedPercent, 14);
+    assert.equal(qSample.secondary.expired, false);
+
+    console.log("[PASS 5/5] MCP Stdio 握手、17 个工具、脱敏隔离、Codex 配额尾部采集与帧预算验收通过");
     await client.close();
     client = null;
   } finally {

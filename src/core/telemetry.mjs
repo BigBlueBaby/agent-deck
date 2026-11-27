@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { resolveCodexHome } from "../providers/codex_plus.mjs";
 
-const QUOTA_TTL_MS = 15_000;
+const QUOTA_TTL_MS = 3_000;
 const ANTIGRAVITY_TTL_MS = 60_000;
+const MAX_FULL_ROLLOUT_BYTES = 32 * 1024 * 1024;
+const TAIL_SLICE_SIZES = [256 * 1024, 2 * 1024 * 1024, 8 * 1024 * 1024];
 const usageKeys = {
   inputTokens: ["input_tokens", "inputTokens", "prompt_tokens", "promptTokenCount", "prompt_token_count"],
   cachedInputTokens: ["cached_input_tokens", "cachedInputTokens", "cache_read_input_tokens", "cachedContentTokenCount", "cached_content_token_count"],
@@ -13,6 +15,7 @@ const usageKeys = {
 };
 
 const codexFiles = new Map();
+const quotaTailFiles = new Map();
 const quotaCache = new Map();
 const rolloutIndexes = new Map();
 const transcriptFiles = new Map();
@@ -31,18 +34,82 @@ export function normalizeUsage(raw = {}) {
   ]));
 }
 
-/** 归一化 Codex 配额窗口，重置时间保留服务端 Unix 秒值。 */
-function quotaWindow(window) {
+/** 归一化 Codex 配额窗口，保留重置时间（Unix 秒）并计算当前是否已过重置点。 */
+function quotaWindow(window, now = Date.now()) {
   const usedPercent = numeric(window?.used_percent ?? window?.usedPercent);
   if (usedPercent == null) return null;
+  const resetsAt = window.resets_at ?? window.resetsAt ?? null;
+  const raw = numeric(resetsAt);
+  const resetMs = raw != null ? raw * (raw < 1e12 ? 1000 : 1) : Date.parse(resetsAt);
+  const expired = Number.isFinite(resetMs) && now >= resetMs;
   return {
     usedPercent,
-    resetsAt: window.resets_at ?? window.resetsAt ?? null,
+    resetsAt,
     windowMinutes: numeric(window.window_minutes ?? window.windowMinutes),
+    expired,
   };
 }
 
-/** 按文件修改时间与长度复用解析结果，每次刷新最多读取文件一次。 */
+/** 提取单条 token_count 事件中的有效 Codex 配额（同时兼容官方直连与 Magpie/代理透传的官方配额）。 */
+function extractQuotaFromEvent(row, stat) {
+  const payload = row?.payload;
+  if (row?.type !== "event_msg" || payload?.type !== "token_count") return null;
+  const limits = payload.rate_limits;
+  if (!limits) return null;
+  if (limits.limit_id && !/^codex\b/i.test(String(limits.limit_id))) return null;
+  const primary = quotaWindow(limits.primary);
+  const secondary = quotaWindow(limits.secondary);
+  if (!primary && !secondary) return null;
+  return {
+    primary,
+    secondary,
+    planType: limits.plan_type ?? null,
+    capturedAt: row.timestamp ?? new Date(stat.mtimeMs).toISOString(),
+  };
+}
+
+/** 仅读取文件尾部切片（支持 >1 GB 超大 rollout 日志，毫秒级且绝不触发 ERR_STRING_TOO_LONG）。 */
+function readTailUtf8(file, size, maxBytes) {
+  const len = Math.min(size, maxBytes);
+  const start = Math.max(0, size - len);
+  const fd = fs.openSync(file, "r");
+  try {
+    const buf = Buffer.alloc(len);
+    const bytesRead = fs.readSync(fd, buf, 0, len, start);
+    return buf.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/** 从 rollout 尾部逐级扩大切片提取最新一条有效 Codex 配额，按 mtimeMs+size 缓存。 */
+function readRolloutQuotaTail(file, stat) {
+  const previous = quotaTailFiles.get(file);
+  if (previous?.mtimeMs === stat.mtimeMs && previous.size === stat.size) return previous.value;
+  let value = null;
+  for (const sliceBytes of TAIL_SLICE_SIZES) {
+    const text = readTailUtf8(file, stat.size, sliceBytes);
+    const lines = text.split(/\r?\n/);
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      const line = lines[i];
+      if (!line || !line.includes("rate_limits")) continue;
+      try {
+        const quota = extractQuotaFromEvent(JSON.parse(line), stat);
+        if (quota) {
+          value = quota;
+          break;
+        }
+      } catch {
+        // 切片起点截断的半行或并发写入半行安全跳过
+      }
+    }
+    if (value || stat.size <= sliceBytes) break;
+  }
+  quotaTailFiles.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, value });
+  return value;
+}
+
+/** 按文件修改时间与长度复用解析结果，超大文件回退尾部读取避免 ERR_STRING_TOO_LONG。 */
 function cachedFile(file, cache, parse, stat = fs.statSync(file, { throwIfNoEntry: false })) {
   if (!stat?.isFile()) {
     cache.delete(file);
@@ -50,7 +117,10 @@ function cachedFile(file, cache, parse, stat = fs.statSync(file, { throwIfNoEntr
   }
   const previous = cache.get(file);
   if (previous?.mtimeMs === stat.mtimeMs && previous.size === stat.size) return previous.value;
-  const value = parse(fs.readFileSync(file, "utf8"), stat);
+  const text = stat.size > MAX_FULL_ROLLOUT_BYTES
+    ? readTailUtf8(file, stat.size, TAIL_SLICE_SIZES.at(-1))
+    : fs.readFileSync(file, "utf8");
+  const value = parse(text, stat);
   cache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, value });
   return value;
 }
@@ -72,14 +142,11 @@ function parseRollout(text, stat) {
   const result = { model: "", effort: "", turns: 0, toolCalls: 0, ...normalizeUsage() };
   let firstQuota;
   let lastQuota;
-  let officialProvider = true;
   const seenTurns = new Set();
   for (const row of jsonLines(text)) {
     const payload = row?.payload;
     if (!payload) continue;
-    if (row.type === "session_meta") {
-      officialProvider = !payload.model_provider || payload.model_provider === "openai";
-    } else if (row.type === "turn_context") {
+    if (row.type === "turn_context") {
       result.model = payload.model || result.model;
       result.effort = payload.effort || payload.reasoning_effort || result.effort;
     } else if (row.type === "response_item" && ["function_call", "custom_tool_call", "local_shell_call",
@@ -91,13 +158,8 @@ function parseRollout(text, stat) {
       result.turns += 1;
     } else if (row.type === "event_msg" && payload.type === "token_count") {
       if (payload.info?.total_token_usage) Object.assign(result, normalizeUsage(payload.info.total_token_usage));
-      const limits = payload.rate_limits;
-      if (!officialProvider || !limits || (limits.limit_id && limits.limit_id !== "codex")) continue;
-      const quota = {
-        primary: quotaWindow(limits.primary), secondary: quotaWindow(limits.secondary),
-        planType: limits.plan_type ?? null, capturedAt: row.timestamp ?? new Date(stat.mtimeMs).toISOString(),
-      };
-      if (!quota.primary && !quota.secondary) continue;
+      const quota = extractQuotaFromEvent(row, stat);
+      if (!quota) continue;
       firstQuota ??= quota;
       lastQuota = quota;
     }
@@ -158,12 +220,14 @@ export function readCodexThreadTelemetry(threadId, config, { fresh = false } = {
   }
 }
 
-/** 每 15 秒刷新最近 8 个 rollout 的配额，文件内容未变化时复用既有解析结果。 */
-export function readLatestCodexQuota(config) {
+/** 刷新最近 24 个 rollout 的尾部配额（按 mtimeMs+size 缓存，支持 >1 GB 大日志与代理透传，实时重算过期状态）。 */
+export function readLatestCodexQuota(config, { force = false } = {}) {
   const home = resolveCodexHome(config);
   const now = Date.now();
   const cached = quotaCache.get(home);
-  if (cached && now < cached.expiresAt) return cached.value;
+  if (!force && cached && now < cached.expiresAt) {
+    return refreshQuotaExpiry(cached.value, now);
+  }
   const recent = rolloutIndex(home, true).files.flatMap((file) => {
     try {
       const stat = fs.statSync(file);
@@ -171,18 +235,31 @@ export function readLatestCodexQuota(config) {
     } catch {
       return [];
     }
-  }).sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs).slice(0, 8);
+  }).sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs).slice(0, 24);
   let value = null;
   for (const { file, stat } of recent) {
     try {
-      const quota = cachedFile(file, codexFiles, parseRollout, stat)?.quota;
+      const quota = readRolloutQuotaTail(file, stat);
       if (quota && (!value || Date.parse(quota.capturedAt) > Date.parse(value.capturedAt))) value = quota;
     } catch {
       // 已移动或不可读的 rollout 不影响其他日志。
     }
   }
   quotaCache.set(home, { value, expiresAt: now + QUOTA_TTL_MS });
-  return value;
+  return refreshQuotaExpiry(value, now);
+}
+
+/** 每次返回配额前按当前时刻重新评估窗口是否已重置，避免缓存期内停留在旧的未过期状态。 */
+function refreshQuotaExpiry(quota, now) {
+  if (!quota) return null;
+  const check = (win) => {
+    if (!win) return null;
+    const raw = numeric(win.resetsAt);
+    const resetMs = raw != null ? raw * (raw < 1e12 ? 1000 : 1) : Date.parse(win.resetsAt);
+    const expired = Number.isFinite(resetMs) && now >= resetMs;
+    return { ...win, expired };
+  };
+  return { ...quota, primary: check(quota.primary), secondary: check(quota.secondary) };
 }
 
 /** 支持运行环境注入的目录，并使用 Antigravity 跨平台默认数据根。 */

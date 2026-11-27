@@ -22,24 +22,36 @@ export function routingView(ctx) {
   </section>`;
 }
 
-/** Codex 提供配额窗口（自动读取账号套餐类型，不写死 Plus/Pro），Antigravity 提供本地转录用量窗口。 */
+/** 判断单个配额窗口是否已超过重置时间。 */
+function isWindowExpired(win) {
+  if (!win) return false;
+  if (win.expired === true) return true;
+  if (win.resetsAt == null || win.resetsAt === "") return false;
+  const numeric = Number(win.resetsAt);
+  const date = Number.isFinite(numeric) ? numeric * (numeric < 1e12 ? 1000 : 1) : Date.parse(win.resetsAt);
+  return Number.isFinite(date) && Date.now() >= date;
+}
+
+/** Codex 提供配额窗口（自动读取账号套餐类型，过期窗口自动归零提示），Antigravity 提供本地转录用量窗口。 */
 function quotaCard({ t, snapshot, fmt, locale }) {
   const codex = snapshot.quotaOverview?.codex;
   const antigravity = snapshot.quotaOverview?.antigravity;
   const windows = [["quota5", "primary"], ["quota7", "secondary"]];
   const rawPlan = String(codex?.planType || "").trim();
   const codexHeading = rawPlan ? `Codex · ${rawPlan[0].toUpperCase()}${rawPlan.slice(1)}` : "Codex";
+  const sampledNote = codex?.capturedAt ? `<small class="muted">${esc(t("sampledAt", fmt.date(codex.capturedAt)))}</small>` : "";
   return `<section class="card panel quota-card" data-scroll-anchor="quota">
     <h2>${icon("routing", 17)}${esc(t("quotaMonitor"))}</h2>
-    <div class="quota-section"><h3>${esc(codexHeading)}</h3>
+    <div class="quota-section"><div class="quota-caption"><h3>${esc(codexHeading)}</h3>${sampledNote}</div>
       ${windows.map(([label, key]) => {
         const window = [codex?.primary, codex?.secondary].find((row) => row?.windowMinutes === (key === "primary" ? 300 : 10080))
           ?? (codex?.[key] && !codex[key].windowMinutes ? codex[key] : null);
         if (!window) return `<div class="quota-caption"><span>${esc(t(label))}</span><span>${esc(t("quotaUnavailable"))}</span></div>`;
-        const value = Math.min(100, Math.max(0, Number(window.usedPercent) || 0));
-        return `<div class="quota-meter"><div class="quota-caption"><span>${esc(t(label))}</span><strong>${fmt.percent(window.usedPercent)}</strong></div>
+        const expired = isWindowExpired(window);
+        const value = expired ? 0 : Math.min(100, Math.max(0, Number(window.usedPercent) || 0));
+        return `<div class="quota-meter"><div class="quota-caption"><span>${esc(t(label))}</span><strong>${fmt.percent(value)}</strong></div>
           <progress value="${value}" max="100" aria-label="${esc(codexHeading)} · ${esc(t(label))}"></progress>
-          <small data-reset-at="${esc(window.resetsAt)}">${esc(countdown(window.resetsAt, t, locale))}</small></div>`;
+          <small data-reset-at="${esc(window.resetsAt)}">${esc(expired ? t("awaitingReset") : countdown(window.resetsAt, t, locale))}</small></div>`;
       }).join("")}
     </div>
     <div class="quota-section"><h3>Antigravity</h3>

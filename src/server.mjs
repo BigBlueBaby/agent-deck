@@ -265,7 +265,7 @@ export function createDeckServer({ dataDir }) {
         antigravity: readAntigravityTaskTelemetry(antigravityTaskId || selected.id),
         usage: db.listUsageByTask(selected.id),
       } : null,
-      quotaOverview: { codex: readLatestCodexQuota(config), antigravity: readAntigravityWindowStats() },
+      quotaOverview: { codex: readLatestCodexQuota(config, { force: true }), antigravity: readAntigravityWindowStats() },
       modelPolicy: policy, config: sanitizeConfigForClient(config), guardrailPresets: listGuardrailPresets(),
       messages,
       events: selected ? db.listRecentEvents(selected.id, 60) : [],
