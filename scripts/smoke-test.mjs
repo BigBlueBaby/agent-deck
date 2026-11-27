@@ -217,13 +217,45 @@ async function main() {
       ].join("\n"),
       "utf8",
     );
-    const { readLatestCodexQuota } = await import("../src/core/telemetry.mjs");
+    const { readLatestCodexQuota, getLatestCodexQuota } = await import("../src/core/telemetry.mjs");
     const qSample = readLatestCodexQuota({ runtimes: { codex: { codexHome: fakeCodexHome } } }, { force: true });
     assert.ok(qSample, "应识别 Magpie 透传的 Codex 官方配额");
     assert.equal(qSample.primary.usedPercent, 90);
     assert.equal(qSample.primary.expired, true, "超过 resets_at 的 5h 窗口应标记 expired=true");
     assert.equal(qSample.secondary.usedPercent, 14);
     assert.equal(qSample.secondary.expired, false);
+
+    // 5c. 验证实时配额接口优先查询与 forceLive 立即更新（使用本地回环模拟服务，绝不依赖外网）
+    const http = await import("node:http");
+    let liveHits = 0;
+    const mockUsageServer = http.createServer((req, res) => {
+      liveHits += 1;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        plan_type: "pro",
+        rate_limit: {
+          primary_window: { used_percent: liveHits === 1 ? 12 : 15, limit_window_seconds: 18000, reset_at: futureSec },
+          secondary_window: { used_percent: 17, limit_window_seconds: 604800, reset_at: futureSec },
+        },
+      }));
+    });
+    await new Promise((r) => mockUsageServer.listen(0, "127.0.0.1", r));
+    try {
+      const { port } = mockUsageServer.address();
+      fs.writeFileSync(path.join(fakeCodexHome, "auth.json"), JSON.stringify({ tokens: { access_token: "demo_tok", account_id: "acct_demo" } }), "utf8");
+      const mockUrl = `http://127.0.0.1:${port}/wham/usage`;
+      const qLive1 = await getLatestCodexQuota({ runtimes: { codex: { codexHome: fakeCodexHome } } }, { usageUrl: mockUrl });
+      assert.equal(qLive1.source, "live");
+      assert.equal(qLive1.planType, "pro");
+      assert.equal(qLive1.primary.usedPercent, 12);
+      const qCached = await getLatestCodexQuota({ runtimes: { codex: { codexHome: fakeCodexHome } } }, { usageUrl: mockUrl });
+      assert.equal(qCached.primary.usedPercent, 12, "60s 缓存期内常规轮询不应重复请求实时接口");
+      const qForced = await getLatestCodexQuota({ runtimes: { codex: { codexHome: fakeCodexHome } } }, { forceLive: true, usageUrl: mockUrl });
+      assert.equal(qForced.primary.usedPercent, 15, "forceLive=true（点击刷新）必须强制拉取最新实时配额");
+      assert.equal(liveHits, 2);
+    } finally {
+      mockUsageServer.close();
+    }
 
     console.log("[PASS 5/5] MCP Stdio 握手、17 个工具、脱敏隔离、Codex 配额尾部采集与帧预算验收通过");
     await client.close();

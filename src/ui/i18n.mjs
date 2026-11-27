@@ -46,7 +46,7 @@ const labels = {
   balancedHelp: ["按任务难度与剩余配额自动升降档。", "Automatically balance model tier against task complexity and quota."],
   free_onlyHelp: ["仅使用标记为免费的模型通道，零付费消耗。", "Route exclusively through free channels with zero paid quota usage."],
   quotaSaved: ["已更新配额模式", "Quota mode updated"], quotaMonitor: ["实时配额与用量", "Quota & usage monitor"],
-  resetsIn: ["{0} 后重置", "Resets in {0}"], awaitingReset: ["窗口已重置 · 待下次执行同步", "Window reset · updates on next run"], sampledAt: ["采样于 {0}", "Sampled {0}"],
+  resetsIn: ["{0} 后重置", "Resets in {0}"], awaitingReset: ["窗口已重置 · 待下次执行同步", "Window reset · updates on next run"], sampledAt: ["本地日志 · {0}", "Local log · {0}"], liveSampledAt: ["实时 · {0}", "Live · {0}"], refreshed: ["已刷新最新数据与实时配额", "Refreshed live status & quota"],
   windowTasks: ["{0} 条活跃工单", "{0} active tasks"], activityUnavailable: ["本地转录仅提供工单数和 Token 汇总。", "Local transcripts provide task counts and token totals."],
   matrix: ["Parallax 选模矩阵", "Parallax model matrix"], plusFlagship: ["旗舰档", "Flagship"], plusPrimary: ["主力档", "Primary"],
   plusBoost: ["升档攻坚", "Boost"], plusEco: ["经济省流", "Economy"], freeFast: ["免费高速", "Free Fast"],

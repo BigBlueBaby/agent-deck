@@ -12,7 +12,7 @@ import { buildGuardrailInstructions } from "../guardrails/presets.mjs";
 import { createId, nowIso } from "../core/db.mjs";
 import { captureBaseline, collectChangesAfterRun } from "../core/git_snapshot.mjs";
 import { resolveRoutingDecision, normalizeProvider } from "../core/router.mjs";
-import { normalizeUsage, readCodexThreadTelemetry, readLatestCodexQuota } from "../core/telemetry.mjs";
+import { getLatestCodexQuota, normalizeUsage, readCodexThreadTelemetry } from "../core/telemetry.mjs";
 
 const providerEnv = "AGENT_DECK_PROVIDER_TOKEN";
 const activeStatuses = new Set(["queued", "running"]);
@@ -378,8 +378,7 @@ export class DeckRunner {
   async dispatchNewTask(params) {
     const workspace = taskWorkspace(params);
     const config = this.getConfig();
-    const policy = await this.getPolicy(config);
-    const quota = readLatestCodexQuota(config);
+    const [policy, quota] = await Promise.all([this.getPolicy(config), getLatestCodexQuota(config)]);
     const routing = resolveRoutingDecision(params, { config, policy, quota });
     const secrets = providerSecrets(config);
     const clean = (value) => redactProviderSecrets(value, secrets);
@@ -399,8 +398,7 @@ export class DeckRunner {
   /** 在同一线程和模型上返工，超出轮次前暂停并等待 UI 人工确认。 */
   async sendFeedbackAndResume(taskId, feedback, forceHumanOverride = false) {
     const config = this.getConfig();
-    const quota = readLatestCodexQuota(config);
-    const policy = await this.getPolicy(config);
+    const [quota, policy] = await Promise.all([getLatestCodexQuota(config), this.getPolicy(config)]);
     const secrets = providerSecrets(config);
     const content = redactProviderSecrets(feedback, secrets);
     const result = inDeckTransaction(this.db, () => {

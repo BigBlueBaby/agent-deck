@@ -228,12 +228,15 @@ function selection() {
   return taskId ? { taskId } : {};
 }
 
-/** 合并同一版本的刷新请求，不接受选中工单或写入前的旧响应。 */
-async function refresh() {
+/** 合并同一版本的刷新请求，不接受选中工单或写入前的旧响应；refreshQuota=true 时绕过缓存强制实时查配额。 */
+async function refresh({ refreshQuota = false } = {}) {
   if (connection !== "ready" || pendingWrites) return;
   const version = readVersion;
-  if (refreshFlight?.version === version) return refreshFlight.promise;
-  const args = ui.requestedTask ? { taskId: ui.requestedTask } : { followLatest: true };
+  if (!refreshQuota && refreshFlight?.version === version) return refreshFlight.promise;
+  const args = {
+    ...(ui.requestedTask ? { taskId: ui.requestedTask } : { followLatest: true }),
+    ...(refreshQuota ? { refreshQuota: true } : {}),
+  };
   const promise = (async () => {
     const result = await invoke("ui_get_snapshot", args, connectionTimeout);
     if (version === readVersion && !pendingWrites) {
@@ -274,10 +277,10 @@ function isConnectionError(error) {
 }
 
 /** 前台切回和宿主上下文变化共享刷新入口，合并并发请求。 */
-async function foreground() {
+async function foreground(options) {
   if (document.hidden || connection !== "ready") return;
   try {
-    await refresh();
+    await refresh(options);
   } catch (error) {
     if (connection === "ready" && isConnectionError(error)) connect();
     else toast(errorText(error), true);
@@ -566,7 +569,10 @@ const actions = {
   "file-filter": (id) => { ui.fileFilter = id; render(); },
   sidebar: () => saveSidebar({ sidebarCollapsed: !ui.collapsed }),
   language: () => perform("config", () => saveConfig({ ui: { locale: locale() === "en" ? "zh-CN" : "en" } })),
-  refresh: () => perform("refresh", foreground),
+  refresh: () => perform("refresh", async () => {
+    await foreground({ refreshQuota: true });
+    toast(t("refreshed"));
+  }),
   reconnect: connect,
   stop: (taskId) => perform("task-write", async () => {
     const result = await write("ui_cancel_task", { taskId });

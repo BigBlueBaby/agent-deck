@@ -13,7 +13,7 @@ import { loadConfig, saveConfig, sanitizeConfigForClient } from "./core/config_s
 import { DeckDb, nowIso } from "./core/db.mjs";
 import { revertSingleFileChange } from "./core/git_snapshot.mjs";
 import { resolveModelPolicy, syncModelPolicy, triggerBackgroundPolicyRefreshIfStale } from "./core/model_policy.mjs";
-import { readAntigravityTaskTelemetry, readAntigravityWindowStats, readCodexThreadTelemetry, readLatestCodexQuota } from "./core/telemetry.mjs";
+import { getLatestCodexQuota, readAntigravityTaskTelemetry, readAntigravityWindowStats, readCodexThreadTelemetry } from "./core/telemetry.mjs";
 import { listGuardrailPresets } from "./guardrails/presets.mjs";
 import { resolveCodexHome } from "./providers/codex_plus.mjs";
 import { detectAllProviders, testOpenAICompatProvider } from "./providers/openai_compat.mjs";
@@ -26,7 +26,7 @@ const APP_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const entrypoints = [{ type: "aux_pane", title: "AgentDeck" }, { type: "global", title: "AgentDeck" }];
 const mode = z.enum(["burst", "balanced", "free_only"]);
 const id = z.string().min(1).max(160);
-const taskSelection = { taskId: id.optional(), followLatest: z.boolean().optional() };
+const taskSelection = { taskId: id.optional(), followLatest: z.boolean().optional(), refreshQuota: z.boolean().optional() };
 const providerInput = z.object({
   id: id.optional(), name: z.string().max(200).optional(), baseUrl: z.string().max(2048).optional(),
   apiKey: z.string().max(4096).optional(), wireApi: z.enum(["responses", "chat_completions"]).optional(),
@@ -242,8 +242,8 @@ export function createDeckServer({ dataDir }) {
     return task;
   }
 
-  /** 构建看板数据，followLatest 优先聚焦运行中 → 待验收 → 最新工单。 */
-  async function snapshot({ taskId, followLatest } = {}) {
+  /** 构建看板数据，followLatest 优先聚焦运行中 → 待验收 → 最新工单；refreshQuota=true 强制执行实时配额查询。 */
+  async function snapshot({ taskId, followLatest, refreshQuota } = {}) {
     const config = getConfig();
     const tasks = db.listTasks(30);
     const autoPick =
@@ -252,7 +252,10 @@ export function createDeckServer({ dataDir }) {
       tasks[0] ||
       null;
     const selected = followLatest ? autoPick : taskId ? requireTask(taskId) : autoPick;
-    const status = await cachedEnvironment(config);
+    const [status, liveCodexQuota] = await Promise.all([
+      cachedEnvironment(config),
+      getLatestCodexQuota(config, { forceLive: Boolean(refreshQuota) }),
+    ]);
     const policy = resolveModelPolicy(dataDir, config, status?.magpie, status?.custom);
     const messages = selected ? db.listMessages(selected.id) : [];
     const antigravityTaskId = messages.find((message) => message.kind === "brief")?.meta?.antigravityTaskId;
@@ -265,7 +268,7 @@ export function createDeckServer({ dataDir }) {
         antigravity: readAntigravityTaskTelemetry(antigravityTaskId || selected.id),
         usage: db.listUsageByTask(selected.id),
       } : null,
-      quotaOverview: { codex: readLatestCodexQuota(config, { force: true }), antigravity: readAntigravityWindowStats() },
+      quotaOverview: { codex: liveCodexQuota, antigravity: readAntigravityWindowStats() },
       modelPolicy: policy, config: sanitizeConfigForClient(config), guardrailPresets: listGuardrailPresets(),
       messages,
       events: selected ? db.listRecentEvents(selected.id, 60) : [],

@@ -39,7 +39,8 @@ function quotaCard({ t, snapshot, fmt, locale }) {
   const windows = [["quota5", "primary"], ["quota7", "secondary"]];
   const rawPlan = String(codex?.planType || "").trim();
   const codexHeading = rawPlan ? `Codex · ${rawPlan[0].toUpperCase()}${rawPlan.slice(1)}` : "Codex";
-  const sampledNote = codex?.capturedAt ? `<small class="muted">${esc(t("sampledAt", fmt.date(codex.capturedAt)))}</small>` : "";
+  const sampledKey = codex?.source === "live" ? "liveSampledAt" : "sampledAt";
+  const sampledNote = codex?.capturedAt ? `<small class="muted">${esc(t(sampledKey, fmt.date(codex.capturedAt)))}</small>` : "";
   return `<section class="card panel quota-card" data-scroll-anchor="quota">
     <h2>${icon("routing", 17)}${esc(t("quotaMonitor"))}</h2>
     <div class="quota-section"><div class="quota-caption"><h3>${esc(codexHeading)}</h3>${sampledNote}</div>

@@ -4,6 +4,9 @@ import path from "node:path";
 import { resolveCodexHome } from "../providers/codex_plus.mjs";
 
 const QUOTA_TTL_MS = 3_000;
+const LIVE_QUOTA_TTL_MS = 60_000;
+const LIVE_QUOTA_TIMEOUT_MS = 4_000;
+const DEFAULT_CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const ANTIGRAVITY_TTL_MS = 60_000;
 const MAX_FULL_ROLLOUT_BYTES = 32 * 1024 * 1024;
 const TAIL_SLICE_SIZES = [256 * 1024, 2 * 1024 * 1024, 8 * 1024 * 1024];
@@ -17,6 +20,8 @@ const usageKeys = {
 const codexFiles = new Map();
 const quotaTailFiles = new Map();
 const quotaCache = new Map();
+const liveQuotaCache = new Map();
+const liveQuotaInFlight = new Map();
 const rolloutIndexes = new Map();
 const transcriptFiles = new Map();
 let taskCache = new Map();
@@ -34,18 +39,21 @@ export function normalizeUsage(raw = {}) {
   ]));
 }
 
-/** 归一化 Codex 配额窗口，保留重置时间（Unix 秒）并计算当前是否已过重置点。 */
+/** 归一化 Codex 配额窗口，兼容 rollout（resets_at/window_minutes）与实时接口（reset_at/limit_window_seconds）。 */
 function quotaWindow(window, now = Date.now()) {
   const usedPercent = numeric(window?.used_percent ?? window?.usedPercent);
   if (usedPercent == null) return null;
-  const resetsAt = window.resets_at ?? window.resetsAt ?? null;
+  const resetsAt = window.resets_at ?? window.resetsAt ?? window.reset_at ?? window.resetAt ?? null;
   const raw = numeric(resetsAt);
   const resetMs = raw != null ? raw * (raw < 1e12 ? 1000 : 1) : Date.parse(resetsAt);
   const expired = Number.isFinite(resetMs) && now >= resetMs;
+  const windowSecs = numeric(window.limit_window_seconds ?? window.limitWindowSeconds);
+  const windowMinutes = numeric(window.window_minutes ?? window.windowMinutes)
+    ?? (windowSecs != null ? Math.round(windowSecs / 60) : null);
   return {
     usedPercent,
     resetsAt,
-    windowMinutes: numeric(window.window_minutes ?? window.windowMinutes),
+    windowMinutes,
     expired,
   };
 }
@@ -246,7 +254,81 @@ export function readLatestCodexQuota(config, { force = false } = {}) {
     }
   }
   quotaCache.set(home, { value, expiresAt: now + QUOTA_TTL_MS });
-  return refreshQuotaExpiry(value, now);
+  return refreshQuotaExpiry(value ? { ...value, source: "rollout" } : null, now);
+}
+
+/** 仅在内存中读取本地 auth.json 的官方登录令牌用于只读查询，绝不打印、缓存或回传任何凭据。 */
+function readCodexAuthTokens(home) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(home, "auth.json"), "utf8"));
+    const accessToken = typeof raw?.tokens?.access_token === "string" ? raw.tokens.access_token.trim() : "";
+    const accountId = typeof raw?.tokens?.account_id === "string" ? raw.tokens.account_id.trim() : "";
+    return accessToken ? { accessToken, accountId } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 通过官方只读配额接口实时拉取最新 5h/7d 配额（默认 60 秒自动缓存，forceLive=true 立即重查，并发请求自动合并）。 */
+export async function fetchLiveCodexQuota(config, { forceLive = false, usageUrl = process.env.AGENT_DECK_CODEX_USAGE_URL || DEFAULT_CODEX_USAGE_URL } = {}) {
+  if (config?.providers?.codexPlus?.enabled === false) return null;
+  const home = resolveCodexHome(config);
+  const key = `${home}|${usageUrl}`;
+  const now = Date.now();
+  const cached = liveQuotaCache.get(key);
+  if (!forceLive && cached && now < cached.expiresAt) {
+    return refreshQuotaExpiry(cached.value, now);
+  }
+  if (!forceLive && liveQuotaInFlight.has(key)) {
+    return liveQuotaInFlight.get(key);
+  }
+  const auth = readCodexAuthTokens(home);
+  if (!auth) return null;
+
+  const promise = (async () => {
+    try {
+      const headers = {
+        Authorization: `Bearer ${auth.accessToken}`,
+        Accept: "application/json",
+        "User-Agent": "codex_cli_rs/0.172.0",
+      };
+      if (auth.accountId) headers["ChatGPT-Account-Id"] = auth.accountId;
+      const res = await fetch(usageUrl, { headers, signal: AbortSignal.timeout(LIVE_QUOTA_TIMEOUT_MS) });
+      if (!res.ok) {
+        await res.body?.cancel?.();
+        return null;
+      }
+      const data = await res.json();
+      const rl = data?.rate_limit;
+      const capturedAt = new Date().toISOString();
+      const primary = quotaWindow(rl?.primary_window ?? rl?.primary, Date.now());
+      const secondary = quotaWindow(rl?.secondary_window ?? rl?.secondary, Date.now());
+      if (!primary && !secondary) return null;
+      const value = {
+        primary,
+        secondary,
+        planType: data?.plan_type ?? null,
+        capturedAt,
+        source: "live",
+      };
+      liveQuotaCache.set(key, { value, expiresAt: Date.now() + LIVE_QUOTA_TTL_MS });
+      return value;
+    } catch {
+      return null;
+    } finally {
+      if (liveQuotaInFlight.get(key) === promise) liveQuotaInFlight.delete(key);
+    }
+  })();
+
+  liveQuotaInFlight.set(key, promise);
+  return promise;
+}
+
+/** 优先实时查询 Codex 官方配额（60s 自动更新 / 点击刷新强制重查），离线或无官方登录时无缝回退本地 rollout 尾部采集。 */
+export async function getLatestCodexQuota(config, { forceLive = false, usageUrl } = {}) {
+  const live = await fetchLiveCodexQuota(config, { forceLive, ...(usageUrl ? { usageUrl } : {}) });
+  if (live) return live;
+  return readLatestCodexQuota(config, { force: forceLive });
 }
 
 /** 每次返回配额前按当前时刻重新评估窗口是否已重置，避免缓存期内停留在旧的未过期状态。 */
