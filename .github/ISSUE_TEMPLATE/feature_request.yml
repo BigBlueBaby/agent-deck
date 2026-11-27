@@ -1,0 +1,25 @@
+name: Feature Request / New Adapter
+description: Suggest a new feature, UI improvement, or agent adapter (e.g. Claude Code, OpenCode, Aider)
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: Describe the workflow gap or provider/runtime you want AgentDeck to support.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work in AgentDeck?
+    validations:
+      required: true
+  - type: checkboxes
+    id: willing
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be interested in helping test or submit a PR for this feature.

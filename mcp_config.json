@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "deck": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/src/server.mjs",
+        "--data-dir=${PLUGIN_DATA}"
+      ],
+      "env": {
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost"
+      }
+    }
+  }
+}

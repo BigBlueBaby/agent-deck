@@ -1,0 +1,32 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "agent-deck",
+  "displayName": "AgentDeck",
+  "version": "2.0.0",
+  "description": "Multi-agent orchestration & visual review workbench for Antigravity: dispatch coding & review tasks to Codex CLI, Magpie, and any OpenAI-compatible provider with live progress, Diff rollback, and Parallax dynamic model routing.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Open AgentDeck and scan my local Codex CLI and provider gateways",
+    "Dispatch a multi-file implementation task to AgentDeck and track its live Diff",
+    "Run an independent read-only security and quality review on my uncommitted changes via AgentDeck"
+  ],
+  "author": {
+    "name": "BigBlueBaby",
+    "url": "https://github.com/BigBlueBaby"
+  },
+  "homepage": "https://github.com/BigBlueBaby/agent-deck#readme",
+  "repository": "https://github.com/BigBlueBaby/agent-deck",
+  "license": "MIT",
+  "keywords": [
+    "antigravity",
+    "multi-agent",
+    "codex",
+    "orchestration",
+    "workbench",
+    "code-review",
+    "magpie",
+    "openai-compatible",
+    "parallax",
+    "diff-review"
+  ]
+}

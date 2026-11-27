@@ -1,0 +1,51 @@
+{
+  "name": "agent-deck",
+  "version": "2.0.0",
+  "private": false,
+  "type": "module",
+  "description": "Multi-agent orchestration & visual review workbench for Google Antigravity (Codex CLI, Magpie, OpenAI-compatible gateways, and Parallax dynamic routing).",
+  "author": {
+    "name": "BigBlueBaby",
+    "url": "https://github.com/BigBlueBaby"
+  },
+  "homepage": "https://github.com/BigBlueBaby/agent-deck#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BigBlueBaby/agent-deck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BigBlueBaby/agent-deck/issues"
+  },
+  "keywords": [
+    "antigravity",
+    "mcp-app",
+    "multi-agent",
+    "codex",
+    "orchestration",
+    "code-review",
+    "magpie",
+    "openai-compatible",
+    "parallax"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build:ui": "node scripts/build-ui.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test:ui": "node scripts/ui-e2e-test.mjs",
+    "test": "npm run build:ui && npm run test:smoke && npm run test:ui",
+    "sync:policy": "node scripts/sync-parallax.mjs",
+    "install:local": "node scripts/install-local.mjs",
+    "validate": "agy plugin validate . --strict"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

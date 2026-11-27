@@ -1,0 +1,57 @@
+/* 壳层固定在宿主视口，只有主内容与工单列表允许垂直滚动。 */
+.shell { display: grid; grid-template-columns: 48px minmax(0, 1fr); width: 100%; height: 100%; overflow: hidden; }
+.rail { display: flex; flex-direction: column; align-items: center; gap: 10px; min-height: 0; padding: 12px 4px 9px; background: var(--bg-rail); border-right: 1px solid var(--border-subtle); overflow: hidden; }
+.rail-nav { display: grid; gap: 5px; inline-size: 100%; }
+.rail-footer { display: grid; justify-items: center; gap: 4px; margin-top: auto; color: var(--tertiary); }
+.workspace, .task-detail, .global-view, .conversation { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.workspace { background: var(--bg-canvas); }
+.masthead { flex: none; display: flex; align-items: center; justify-content: space-between; min-height: 43px; padding: 0 18px; border-bottom: 1px solid var(--border-subtle); }
+.segments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; flex: none; margin: 9px 14px 0; }
+.connection, .snapshot-notice { flex: none; }
+.tasks-layout { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 0; min-height: 0; overflow: hidden; }
+.tasks-layout.has-sidebar { grid-template-columns: var(--sidebar-width, 268px) minmax(0, 1fr); }
+.task-sidebar { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-card); border-right: 1px solid var(--border-subtle); overflow: hidden; }
+.sidebar-head, .sidebar-tools { flex: none; }
+.task-list { flex: 1; min-height: 0; padding: 0 8px 10px; overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; }
+.resizer { position: absolute; z-index: 2; inset: 0 0 0 auto; width: 7px; cursor: col-resize; touch-action: none; }
+.resizer::after { content: ""; position: absolute; inset: 0 0 0 auto; width: 2px; background: transparent; transition: background 120ms ease; }
+.resizer:hover::after, .resizer:focus-visible::after, .resizing .resizer::after { background: var(--accent); }
+.resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
+.view-header { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 18px 12px; }
+.view-header h1 { flex: 1 1 12ch; overflow-wrap: anywhere; }
+.header-heading { flex: 1 1 18ch; }
+.header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-inline-start: auto; }
+.task-picker { display: flex; flex: 0 1 15rem; align-items: center; gap: 6px; max-width: 100%; }
+.task-picker select { flex: 1 1 0; max-width: 100%; }
+.task-tabs { flex: none; }
+.view-scroll { flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; padding: 0 18px 18px; }
+.activity-scroll, .message-list { padding-top: 12px; }
+.activity-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.activity-main { display: grid; gap: var(--gap); }
+.inspector-compact { margin-bottom: var(--gap); }
+.inspector-wide { display: none; }
+.conversation, .global-view { flex: 1 1 0; }
+.global-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.global-grid > .full { grid-column: 1 / -1; }
+.global-scroll { padding-top: 2px; }
+.note-form { flex: none; }
+
+@media (min-width: 1280px) {
+  .activity-grid { grid-template-columns: minmax(0, 1fr) 296px; }
+  .inspector-compact { display: none; }
+  .inspector-wide { display: block; position: sticky; top: 0; }
+}
+
+@media (max-width: 859.98px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .masthead { min-height: 42px; padding: 0 14px; }
+  .view-header { padding: 12px 14px 10px; }
+  .task-header .task-picker { flex: 1 0 100%; }
+  .view-scroll { padding-inline: 14px; }
+  .global-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 500px) {
+  :root { --gap: 10px; }
+  .header-actions { gap: 5px; }
+}

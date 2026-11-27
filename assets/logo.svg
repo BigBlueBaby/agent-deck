@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="ad-bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F6BFF"/>
+      <stop offset="100%" stop-color="#25B89A"/>
+    </linearGradient>
+    <linearGradient id="ad-line" x1="18" y1="22" x2="46" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="100%" stop-color="#D7FFF6" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#ad-bg)"/>
+  <rect x="5" y="5" width="54" height="54" rx="14" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="1.5"/>
+  <!-- Orchestrator hub (top) bridging to three parallel execution lanes (bottom) -->
+  <path d="M32 21V31M32 31L19 41M32 31L45 41M32 31V43" stroke="url(#ad-line)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="18" r="5.5" fill="#FFFFFF"/>
+  <circle cx="32" cy="18" r="2.2" fill="#4F6BFF"/>
+  <rect x="14.5" y="39.5" width="9" height="9" rx="3" fill="#FFFFFF" fill-opacity="0.95"/>
+  <rect x="27.5" y="41.5" width="9" height="9" rx="3" fill="#FFFFFF" fill-opacity="0.95"/>
+  <rect x="40.5" y="39.5" width="9" height="9" rx="3" fill="#FFFFFF" fill-opacity="0.95"/>
+</svg>

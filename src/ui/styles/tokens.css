@@ -1,0 +1,95 @@
+/* 宿主提供的颜色与字体优先，未提供时使用三层本地画布。 */
+:root {
+  color-scheme: light;
+  --rail-fallback: #eff1f5;
+  --canvas-fallback: #f6f7f9;
+  --card-fallback: #fff;
+  --text-fallback: #1c2130;
+  --muted-fallback: #555e70;
+  --tertiary-fallback: #686f80;
+  --border-fallback: #e5e7ee;
+  --accent: #4e50cb;
+  --on-accent: #fff;
+  --green: #167650;
+  --red: #be3652;
+  --amber: #9a601b;
+  --shadow: 0 1px 2px #171d2b08;
+  --bg-rail: var(--color-background-tertiary, var(--rail-fallback));
+  --bg-canvas: var(--color-background-secondary, var(--canvas-fallback));
+  --bg-card: var(--color-background-primary, var(--card-fallback));
+  --fg: var(--color-text-primary, var(--text-fallback));
+  --muted: var(--color-text-secondary, var(--muted-fallback));
+  --tertiary: var(--color-text-tertiary, var(--tertiary-fallback));
+  --border-subtle: var(--color-border-secondary, var(--border-fallback));
+  --border-control: var(--color-border-primary, var(--border-fallback));
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+  --row-hover: color-mix(in srgb, var(--fg) 5%, var(--bg-card));
+  --green-soft: color-mix(in srgb, var(--green) 10%, var(--bg-card));
+  --red-soft: color-mix(in srgb, var(--red) 10%, var(--bg-card));
+  --amber-soft: color-mix(in srgb, var(--amber) 10%, var(--bg-card));
+  --scroll-thumb: color-mix(in srgb, var(--fg) 24%, transparent);
+  --radius: 12px;
+  --gap: 14px;
+  --font-ui: var(--font-sans, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif);
+  --font-code: var(--font-mono, "Cascadia Code", Consolas, monospace);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --rail-fallback: #14171d;
+  --canvas-fallback: #111317;
+  --card-fallback: #181b21;
+  --text-fallback: #e9eaf2;
+  --muted-fallback: #b0b5c3;
+  --tertiary-fallback: #a0a6b6;
+  --border-fallback: #2a2e39;
+  --accent: #a5a6ff;
+  --on-accent: #16173c;
+  --green: #70d8a7;
+  --red: #ff8da4;
+  --amber: #f0bc79;
+  --shadow: 0 1px 3px #0003;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --rail-fallback: #14171d;
+    --canvas-fallback: #111317;
+    --card-fallback: #181b21;
+    --text-fallback: #e9eaf2;
+    --muted-fallback: #b0b5c3;
+    --tertiary-fallback: #a0a6b6;
+    --border-fallback: #2a2e39;
+    --accent: #a5a6ff;
+    --on-accent: #16173c;
+    --green: #70d8a7;
+    --red: #ff8da4;
+    --amber: #f0bc79;
+    --shadow: 0 1px 3px #0003;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; min-width: 0; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: var(--bg-canvas); color: var(--fg); font: 13px/1.5 var(--font-ui); font-variant-numeric: tabular-nums; }
+h1, h2, h3, h4, p, ul, ol, pre, dl, dd, blockquote { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+button, summary, [role="separator"] { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [role="separator"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+svg { display: block; flex: none; }
+code, pre { font-family: var(--font-code); }
+small { font-size: 11px; }
+::selection { color: var(--fg); background: var(--accent-soft); }
+
+/* 滚动只属于各视图的内容区和工单列表，滚动轨道保持透明。 */
+:where(.view-scroll, .task-list, .diff, textarea, .confirm-dialog) { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+:where(.view-scroll, .task-list, .diff, textarea, .confirm-dialog):is(:hover, :focus-within) { scrollbar-color: var(--scroll-thumb) transparent; }
+:where(.view-scroll, .task-list, .diff, textarea, .confirm-dialog)::-webkit-scrollbar { width: 5px; height: 5px; }
+:where(.view-scroll, .task-list, .diff, textarea, .confirm-dialog)::-webkit-scrollbar-track { background: transparent; }
+:where(.view-scroll, .task-list, .diff, textarea, .confirm-dialog)::-webkit-scrollbar-thumb { border-radius: 99px; background: var(--scroll-thumb); }
