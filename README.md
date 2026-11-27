@@ -22,6 +22,7 @@
   <strong>English</strong> ·
   <a href="README.zh-CN.md">简体中文</a> ·
   <a href="#one-prompt-safe-install-recommended">Quick Install</a> ·
+  <a href="#how-to-use-in-daily-chat">How to Use</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#why-agentdeck">Features</a> ·
   <a href="#faq">FAQ</a> ·
@@ -39,13 +40,14 @@ Please install the AgentDeck plugin from https://github.com/BigBlueBaby/agent-de
 1. First check that Node.js (>= 22.5.0) and git are available; if either is missing or too old, stop and explain how to upgrade before changing anything.
 2. Clone (or pull latest if already cloned) https://github.com/BigBlueBaby/agent-deck.git into a clean temporary directory, then run `npm install`, `npm run build:ui`, and `npm run test:smoke`. If any step fails, stop and report the error.
 3. Run `npm run install:local` to install into `~/.gemini/config/plugins/agent-deck` (preserving any existing `~/.gemini/antigravity/plugin_data/agent-deck` config and SQLite history) and remove the temporary clone directory.
-4. If `agy` CLI is available, verify with `agy plugin validate ~/.gemini/config/plugins/agent-deck --strict`.
-5. Report the installed path, detected `codex` CLI status, and tell me how to open AgentDeck; if `gh` CLI is logged in, also star the repository to support maintenance.
+4. Routing rule preference: keep the plugin's built-in `rules/AGENTS.md` active (Auto-Dispatch for >=3 files/reviews + auto-open live workbench + 1-line status footer). [If I prefer manual on-demand only, switch `rules/AGENTS.md` to manual-trigger mode instead.]
+5. If `agy` CLI is available, verify with `agy plugin validate ~/.gemini/config/plugins/agent-deck --strict`, then report the installed path, detected `codex` CLI status, and guide me to open AgentDeck and run my first provider scan; if `gh` CLI is logged in, also star the repository to support maintenance.
 ```
 
 > **Tips**
-> - Prefer not to star automatically? Simply omit the final clause about `gh` when copying.
-> - **Upgrade / Uninstall**: Updating uses the exact same prompt (your local `config.json` and SQLite task history in `plugin_data/agent-deck` are never overwritten).
+> - **Zero Global Rule Pollution**: AgentDeck bundles its own `rules/AGENTS.md` inside the plugin — it activates automatically when enabled and disappears cleanly if you ever disable the plugin. No manual edits to `~/.gemini/config/rules/` needed!
+> - **Want Manual-Only Mode?** Just tell Antigravity `"install in manual-only mode"` (or remove `rules/AGENTS.md` from `~/.gemini/config/plugins/agent-deck/`).
+> - **Optional Star**: Omit the final clause about `gh` if you prefer not to star automatically. Updating uses the exact same prompt with zero data loss.
 
 <details>
 <summary><strong>Manual CLI Install (For Developers & Contributors)</strong></summary>
@@ -62,14 +64,42 @@ npm run install:local
 
 </details>
 
-### 30-Second First Setup
-1. Restart/refresh plugins in Antigravity and open **AgentDeck** from the left sidebar or side-pane `+` menu.
-2. Open **Agents & Setup** (3rd icon in the left rail) and click **Scan local environment**.
-3. Configure whichever providers you have:
-   - Toggle **Official Codex account** on/off (works with ChatGPT Plus / Pro / Team / Enterprise or OpenAI API key)
-   - Check any free or paid models auto-discovered from **Magpie** (`http://127.0.0.1:3425/v1`)
-   - Click **Add provider** to connect **OpenRouter / DeepSeek / OneAPI / Ollama** (1-click connection test + model auto-discovery, supports both `Responses` and `Chat Completions` via built-in local bridge)
-4. Choose your **Quota Mode** (`Performance / Burst` · `Balanced` · `Free-Only`) in **Routing & Quotas** — done!
+---
+
+## How to Use in Daily Chat
+
+### Step 1 · 30-Second First Setup
+1. Restart/refresh plugins in Antigravity and open **AgentDeck** (click **AgentDeck** in the left sidebar / side-pane `+` menu, or simply tell Antigravity: `"Open AgentDeck"`).
+2. Click the 3rd icon (**Agents & Setup**) → **Scan local environment**.
+3. Pick whichever providers you have:
+   - Toggle **Official Codex account** on/off (ChatGPT Plus / Pro / Team / Enterprise or OpenAI API key)
+   - Check any free or paid models discovered from **Magpie** (`http://127.0.0.1:3425/v1`)
+   - Click **Add provider** to add **OpenRouter / DeepSeek / OneAPI / Ollama** (1-click test + model discovery)
+4. Pick your **Quota Mode** (`Burst` / `Balanced` / `Free-Only`) under **Routing & Quotas** — done!
+
+### Step 2 · Triggering Orchestration in Any Conversation
+
+Once enabled, you can use AgentDeck in **two effortless ways**:
+
+- **Way A · Automatic Smart Routing (Default — Zero Extra Prompts Needed)**
+  Just talk to Antigravity normally! Because `AgentDeck` ships its own built-in `rules/AGENTS.md`:
+  - **1–2 file quick edits (< 30 lines)** → Antigravity handles directly in seconds (zero overhead).
+  - **≥ 3 files / complex refactoring / independent code review / deep debugging / batch work** → Antigravity automatically slices context, calls `deck_dispatch`, **pops open the live AgentDeck workbench (`deck_open`)** so you can watch progress & Diffs, verifies builds/tests, and appends a **1-line status footer** at the bottom of the reply showing whether AgentDeck ran and which model was chosen:
+    > **AgentDeck**: Dispatched (`taskKind=implement` · `gpt-6.2-sol high` · `task_xxx`) — live progress opened in AgentDeck.
+
+- **Way B · Explicit Prompts Anytime (Copy & Try)**
+  Want to force a specific mode, provider, or panel action? Just say it naturally in chat:
+  - **Open dashboard**: `"Open AgentDeck and show my current tasks and quota"`
+  - **Delegate multi-file coding**: `"Use AgentDeck to refactor the 5 files under src/auth and let me inspect the live Diff"`
+  - **Cross-model blind review (read-only)**: `"Run an independent read-only security review on my uncommitted changes via AgentDeck"`
+  - **Force free model / custom gateway**: `"Use a free model in AgentDeck to add JSDoc comments across src/utils"`
+  - **Inspect & accept**: `"Review the latest AgentDeck task Diff, run tests, and close it if everything passes"`
+
+### Step 3 · What the 4-Step Loop Looks Like
+1. **You describe the goal** in Antigravity chat (as usual).
+2. **Antigravity dispatches & opens the pane** — the external worker runs asynchronously inside a strict path allowlist while Antigravity keeps working or waits cleanly.
+3. **You watch live & review Diffs** in AgentDeck — reverse-chronological timeline, PR-style Diffs, **1-click single-file rollback**, or leave a human note directly in the Conversation tab.
+4. **Antigravity verifies & closes** — checks build/tests, sends rework feedback automatically if needed (`deck_feedback`), and closes cleanly (`deck_close`).
 
 ---
 

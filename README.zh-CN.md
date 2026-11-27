@@ -22,6 +22,7 @@
   <a href="README.md">English</a> ·
   <strong>简体中文</strong> ·
   <a href="#智能体一键安全安装推荐">一键安装</a> ·
+  <a href="#装好后怎么用日常对话实战">怎么用</a> ·
   <a href="#界面预览">界面预览</a> ·
   <a href="#核心卖点一览">核心卖点</a> ·
   <a href="#常见问题-faq">常见问题</a> ·
@@ -39,13 +40,14 @@
 1. 先检查本机 Node.js（要求 >= 22.5.0）和 git 是否可用；若任一不满足，请立即停止并告诉我如何升级，不要改动任何文件。
 2. 将 https://github.com/BigBlueBaby/agent-deck.git 浅克隆到临时目录，依次执行 `npm install`、`npm run build:ui` 和 `npm run test:smoke` 验证构建与协议完整通过；任一步失败立即停止并报告原因。
 3. 执行 `npm run install:local` 安装到 `~/.gemini/config/plugins/agent-deck`（保留已有 `~/.gemini/antigravity/plugin_data/agent-deck` 下的个人配置与 SQLite 工单历史），随后清理临时克隆目录。
-4. 若本机有 `agy` CLI，运行 `agy plugin validate ~/.gemini/config/plugins/agent-deck --strict` 完成官方严格校验。
-5. 汇报安装路径、本机 `codex` CLI 检测结果以及如何打开面板；若已登录 `gh` CLI，请顺便为该开源项目标记 Star 支持维护。
+4. 协同规则选项：默认保留插件自带的 `rules/AGENTS.md`（启用即自动生效：≥3 文件/盲审自动分流 + 自动弹出工作台 + 回复末尾附一行协同状态）。【如果我只想手动点名时才触发，请帮我改为手动按需模式。】
+5. 若本机有 `agy` CLI，运行 `agy plugin validate ~/.gemini/config/plugins/agent-deck --strict` 完成官方严格校验，随后汇报安装路径、本机 `codex` CLI 检测结果，并引导我打开 AgentDeck 完成首次扫描；若已登录 `gh` CLI，请顺便为该开源项目标记 Star 支持维护。
 ```
 
 > **说明与提示**
-> - 如不希望自动点 Star，复制时删掉末尾“若已登录 `gh` CLI…”分句即可。
-> - **升级同样使用本指令**：再次发送即可无损升级到最新版，绝不覆盖你保存在 `plugin_data/agent-deck/` 的配置、自定义 API Key 与 SQLite 历史工单。
+> - **不污染你的全局规则**：AgentDeck 的分流规则内置在插件自身的 `rules/AGENTS.md` 中，**启用插件自动全局生效，停用插件自动干净消失**，不需要手动去改 `~/.gemini/config/rules/`。
+> - **只想手动点名时才用？** 发指令时把第 4 条改成“请设为仅手动按需模式”即可（或直接删除插件目录下的 `rules/AGENTS.md`）。
+> - **无损升级**：后续更新直接再发一遍同一段指令即可，不会覆盖 `plugin_data/agent-deck/` 里的配置、API Key 和历史工单。如不希望自动点 Star，复制时删掉末尾分句即可。
 
 <details>
 <summary><strong>手动命令行安装（开发者 / 贡献者）</strong></summary>
@@ -62,14 +64,42 @@ npm run install:local
 
 </details>
 
-### 30 秒完成本机适配
-1. 重启或刷新 Antigravity 插件后，从左侧栏或右侧边栏 `+` 菜单打开 **AgentDeck**。
-2. 切到左侧第 3 个入口 **执行器与设置**，点击 **一键扫描本机环境**。
-3. 按你的实际账号/网关自由勾选：
-   - 自由开启或关闭 **Codex 官方账号通道**（兼容 Plus / Pro / Team / Enterprise 或 OpenAI API Key）
-   - 在 **Magpie** 分组树中勾选任意你想纳入自动路由的免费或付费模型
-   - 点击 **添加供应商** 接入 **OpenRouter / DeepSeek / OneAPI / 本地 Ollama**（支持一键连通测速与自动发现模型，内置 `Chat Completions ↔ Responses` 本地协议桥）
-4. 到 **策略与用量** 选择你的调度模式（`性能优先 Burst` / `均衡省流 Balanced` / `仅免费通道 Free-Only`），立刻开始协同！
+---
+
+## 装好后怎么用（日常对话实战）
+
+### 第 1 步 · 30 秒配好通道
+1. 重启或刷新 Antigravity 插件，打开 **AgentDeck**（点左侧栏 / 右侧边栏 `+` 里的 **AgentDeck**，或直接在对话里说一句 **`打开 AgentDeck`**）。
+2. 点左侧第 3 个图标 **执行器与设置** → 点右上角 **一键扫描本机环境**。
+3. 按你的实际环境勾选要启用的通道：
+   - 开启或关闭 **Codex 官方账号通道**（Plus / Pro / Team / Enterprise 或 OpenAI API Key）
+   - 在 **Magpie** 分组树勾选任意你想启用的免费或付费模型
+   - 点 **添加供应商** 接入 **OpenRouter / DeepSeek / OneAPI / 本地 Ollama**（支持一键测速与自动拉取模型）
+4. 到 **策略与用量** 选一档调度模式（`性能优先 Burst` / `均衡省流 Balanced` / `仅免费通道 Free-Only`），配置完成！
+
+### 第 2 步 · 在平时对话里怎么触发协同？
+
+装好启用后，有**两种用法**，完全不需要记工具名：
+
+- **用法 A · 自动智能分流（默认推荐，平时正常聊天就行）**
+  启用插件后，内置 `rules/AGENTS.md` 会自动生效：
+  - **1～2 个文件的小改动（< 30 行）**：Antigravity 直接本地秒改，不绕弯路；
+  - **≥ 3 个文件改造 / 复杂重构 / 独立盲审 / 深度排障 / 批量活**：Antigravity 会**自动通过 `deck_dispatch` 派单、自动弹出 AgentDeck 实时进度看板（`deck_open`）**，并在每轮代码/审查回复末尾附一行**协同状态**，让你一眼知道这次有没有分流、用了哪个模型：
+    > **协同状态**：已触发（`taskKind=implement` · `gpt-6.2-sol high` · `task_xxx`）｜已自动打开 AgentDeck 实时进度看板。
+
+- **用法 B · 随时在聊天里直接点名（复制就能试）**
+  想强制走工作台、指定免费通道或做只读盲审时，直接用自然语言说就行：
+  - **打开看板**：`打开 AgentDeck，帮我看看当前工单和额度`
+  - **派发多文件编码**：`用 AgentDeck 帮我重构 src/auth 下的 5 个文件，我要实时看改动 Diff`
+  - **跨模型只读盲审**：`用 AgentDeck 帮我独立只读盲审一下当前未提交的代码改动，重点查安全与边界问题`
+  - **指定免费通道跑批量活**：`用 AgentDeck 的免费模型帮我给 src/utils 补齐注释和单元测试`
+  - **验收与结单**：`帮我检查刚才那张 AgentDeck 工单的 Diff，跑一下测试，没问题就验收结单`
+
+### 第 3 步 · 完整协同闭环长什么样
+1. **你提需求**：像平时一样在 Antigravity 对话框提开发或审查需求。
+2. **主控端派单并自动弹面板**：Antigravity 拆清范围后派单给外部执行器，并自动打开侧栏看板。
+3. **实时盯进度 / 看 Diff / 一键回滚**：你在 AgentDeck 面板看最新置顶动态、红绿 Diff，不满意可对单个文件一键回滚，或在「对话」页留人工批注。
+4. **主控端验收结单**：执行完成后由 Antigravity 统一复核代码与编译测试，有问题自动原线程返工（`deck_feedback`），通过后清理快照并结单（`deck_close`）。
 
 ---
 
